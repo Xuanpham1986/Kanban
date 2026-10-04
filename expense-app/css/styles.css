@@ -468,6 +468,10 @@ dialog h2 { font-size: 18px; margin-bottom: 16px; }
   font-size: 13px;
 }
 
+dialog.confirm { width: min(400px, calc(100% - 32px)); }
+.confirm-msg { margin: 0 0 16px; white-space: pre-line; font-size: 15px; }
+.btn.danger-fill { background: var(--expense); border-color: var(--expense); color: #fff; }
+
 /* ===== Toast ===== */
 .toast {
   position: fixed;

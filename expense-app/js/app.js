@@ -796,7 +796,7 @@
     commit(ui.editingCatId ? 'Đã cập nhật danh mục' : 'Đã thêm danh mục');
   });
 
-  function deleteCategory(id) {
+  async function deleteCategory(id) {
     const c = state.categories.find((x) => x.id === id);
     if (!c || Object.values(FALLBACK_CAT).includes(id)) return;
     const fallback = state.categories.find((x) => x.id === FALLBACK_CAT[c.type]);
@@ -804,7 +804,7 @@
     const msg = n
       ? `Xóa danh mục "${c.name}"?\n${n} giao dịch sẽ được chuyển sang "${fallback.name}".`
       : `Xóa danh mục "${c.name}"?`;
-    if (!confirm(msg)) return;
+    if (!(await ask(msg, { ok: 'Xóa danh mục' }))) return;
     state.transactions.forEach((t) => { if (t.categoryId === id) t.categoryId = fallback.id; });
     state.categories = state.categories.filter((x) => x.id !== id);
     if (ui.filter.cat === id) ui.filter.cat = 'all';
@@ -854,7 +854,7 @@
     if (file.size > 20 * 1024 * 1024) { toast('File quá lớn (tối đa 20MB)'); return; }
     try {
       const data = sanitizeState(JSON.parse(await file.text()));
-      if (!confirm(`Khôi phục ${data.transactions.length} giao dịch và ${data.categories.length} danh mục?\nDữ liệu hiện tại sẽ bị thay thế.`)) return;
+      if (!(await ask(`Khôi phục ${data.transactions.length} giao dịch và ${data.categories.length} danh mục?\nDữ liệu hiện tại sẽ bị thay thế.`, { ok: 'Khôi phục' }))) return;
       state = data;
       commit('Đã khôi phục dữ liệu');
     } catch (e) {
@@ -863,8 +863,8 @@
     }
   }
 
-  function generateSampleData() {
-    if (state.transactions.length && !confirm('Thêm dữ liệu mẫu vào dữ liệu hiện có?')) return;
+  async function generateSampleData() {
+    if (state.transactions.length && !(await ask('Thêm dữ liệu mẫu vào dữ liệu hiện có?', { ok: 'Thêm', danger: false }))) return;
     const rand = (a, b) => Math.round((a + Math.random() * (b - a)) / 1000) * 1000;
     const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
     const has = (id) => state.categories.some((c) => c.id === id);
@@ -901,12 +901,28 @@
     commit(`Đã tạo ${added.length} giao dịch mẫu`);
   }
 
-  function resetData() {
-    if (!confirm('Xóa TOÀN BỘ giao dịch, danh mục và cài đặt?\nThao tác này không thể hoàn tác.')) return;
-    if (!confirm('Bạn chắc chắn chứ? Nên sao lưu trước khi xóa.')) return;
+  async function resetData() {
+    if (!(await ask('Xóa TOÀN BỘ giao dịch, danh mục và cài đặt?\nThao tác này không thể hoàn tác. Nên sao lưu trước khi xóa.', { ok: 'Xóa toàn bộ' }))) return;
     state = defaultState();
     ui.filter = { q: '', type: 'all', cat: 'all' };
     commit('Đã xóa toàn bộ dữ liệu');
+  }
+
+  // ===================== Hộp xác nhận =====================
+  // Dùng <dialog> riêng thay cho window.confirm(): đẹp hơn, nhất quán giữa các trình duyệt
+  // và vẫn hoạt động trong môi trường nhúng (iframe sandbox chặn confirm()).
+  const confirmDialog = $('#confirmDialog');
+  function ask(message, { ok = 'Đồng ý', danger = true } = {}) {
+    $('#confirmMsg').textContent = message;
+    const okBtn = $('#confirmOk');
+    okBtn.textContent = ok;
+    okBtn.classList.toggle('danger-fill', danger);
+    confirmDialog.returnValue = '';
+    confirmDialog.showModal();
+    okBtn.focus();
+    return new Promise((resolve) => {
+      confirmDialog.addEventListener('close', () => resolve(confirmDialog.returnValue === 'ok'), { once: true });
+    });
   }
 
   // ===================== Toast =====================
@@ -930,8 +946,8 @@
       const t = state.transactions.find((x) => x.id === el.dataset.id);
       if (t) openTxDialog(t);
     },
-    'delete-tx': () => {
-      if (!ui.editingTxId || !confirm('Xóa giao dịch này?')) return;
+    'delete-tx': async () => {
+      if (!ui.editingTxId || !(await ask('Xóa giao dịch này?', { ok: 'Xóa' }))) return;
       state.transactions = state.transactions.filter((t) => t.id !== ui.editingTxId);
       txDialog.close();
       commit('Đã xóa giao dịch');
@@ -983,7 +999,7 @@
   });
 
   // Bấm ra ngoài hộp thoại để đóng
-  [txDialog, catDialog].forEach((d) => d.addEventListener('click', (e) => { if (e.target === d) d.close(); }));
+  [txDialog, catDialog, confirmDialog].forEach((d) => d.addEventListener('click', (e) => { if (e.target === d) d.close(); }));
 
   $('#fSearch').addEventListener('input', debounce((e) => { ui.filter.q = e.target.value; renderTransactions(); }, 150));
   $('#fType').addEventListener('change', (e) => { ui.filter.type = e.target.value; renderTransactions(); });
