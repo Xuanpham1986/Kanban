@@ -216,6 +216,235 @@
     if (ok && message) toast(message);
   }
 
+
+  // ===================== Đồng bộ đám mây =====================
+  // Khi app chạy trong claude.ai Artifact, `window.claude` cung cấp kho dữ liệu trên máy chủ (db).
+  // Mỗi người dùng có vùng riêng `data/users/<id>/` (người khác, kể cả chủ artifact, không đọc được):
+  //   meta                      { categories, settings }
+  //   ledger/months/<YYYY-MM>   { tx: { <txId>: {...} | {_del: 1} } }
+  // Gom giao dịch theo tháng để số bản ghi nhỏ; ghi bằng update() (trộn lồng nhau) nên hai thiết bị
+  // thêm/sửa cùng lúc không đè nhau. Xóa = đánh dấu `_del` thay vì ghi đè cả tháng.
+  // Chạy ngoài claude.ai (PWA, file://) thì Cloud.on = false và app chỉ dùng localStorage như cũ.
+  const Cloud = {
+    db: null,
+    status: 'local', // local | connecting | synced | syncing | error
+    pending: 0,
+    chains: new Map(),
+    metaData: null,
+    monthDocs: [],
+    knownMonths: new Set(),
+    get on() { return !!this.db; },
+
+    async init() {
+      if (!window.claude || typeof window.claude.use !== 'function') return;
+      this.setStatus('connecting');
+      try {
+        const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
+        const id = user ? await user.id() : null;
+        if (!db || !id) { this.setStatus('local'); return; }
+        const root = `data/users/${id}`;
+        this.metaRef = db.doc(`${root}/meta`);
+        this.monthsCol = db.doc(`${root}/ledger`).collection('months');
+        const flagKey = `${STORAGE_KEY}:synced:${id}`;
+
+        const [metaSnap, monthsSnap] = await Promise.all([this.metaRef.get(), this.monthsCol.get()]);
+        this.db = db;
+        const cloudTx = new Set();
+        for (const d of monthsSnap.docs) {
+          this.knownMonths.add(d.id);
+          for (const [txId, t] of Object.entries((d.data() || {}).tx || {})) if (t && !t._del) cloudTx.add(txId);
+        }
+        let seenHere = false;
+        try { seenHere = localStorage.getItem(flagKey) === '1'; } catch (_) { /* ignore */ }
+
+        if (!metaSnap.exists && monthsSnap.empty) {
+          // Kho trên mây còn trống: đưa toàn bộ dữ liệu đang có trên máy này lên.
+          await this.replaceAll();
+        } else if (!seenHere) {
+          // Lần đầu thiết bị này kết nối: gộp (không ghi đè) những gì máy này có mà mây chưa có.
+          const cloudMeta = metaSnap.exists ? metaSnap.data() : {};
+          const cloudCats = Array.isArray(cloudMeta.categories) ? cloudMeta.categories : [];
+          const extraCats = state.categories.filter((c) => !cloudCats.some((x) => x.id === c.id));
+          if (!metaSnap.exists || extraCats.length) {
+            state.categories = [...cloudCats, ...extraCats];
+            if (cloudMeta.settings) state.settings = { ...state.settings, ...cloudMeta.settings };
+            this.putMeta();
+          }
+          state.transactions.filter((t) => !cloudTx.has(t.id)).forEach((t) => this.putTx(t));
+        }
+        await this.drain();
+        try { localStorage.setItem(flagKey, '1'); } catch (_) { /* ignore */ }
+
+        const onErr = (e) => { console.error('Đồng bộ lỗi', e); this.setStatus('error'); };
+        this.metaRef.onSnapshot((snap) => { this.metaData = snap.exists ? snap.data() : null; this.apply(); }, onErr);
+        this.monthsCol.onSnapshot((snap) => {
+          this.monthDocs = snap.docs;
+          snap.docs.forEach((d) => this.knownMonths.add(d.id));
+          this.apply();
+        }, onErr);
+        this.setStatus('synced');
+      } catch (e) {
+        console.error('Không kết nối được kho đồng bộ', e);
+        this.db = null;
+        this.setStatus('error');
+      }
+    },
+
+    /** Dựng lại state từ dữ liệu trên mây. Hoãn lại khi còn lệnh ghi đang chạy để UI không bị "giật lùi". */
+    apply() {
+      if (this.pending) { this.dirty = true; return; }
+      this.dirty = false;
+      const meta = this.metaData || {};
+      const transactions = [];
+      for (const d of this.monthDocs) {
+        for (const [id, t] of Object.entries((d.data() || {}).tx || {})) {
+          if (t && !t._del) transactions.push({ ...t, id });
+        }
+      }
+      try {
+        state = sanitizeState({
+          categories: Array.isArray(meta.categories) ? meta.categories : state.categories,
+          settings: meta.settings || state.settings,
+          transactions,
+        });
+      } catch (e) { console.error(e); return; }
+      Store.save(state);
+      render();
+    },
+
+    /** Mỗi bản ghi chỉ có một lệnh ghi tại một thời điểm (xếp hàng theo đường dẫn). */
+    enqueue(ref, op) {
+      if (!this.on) return Promise.resolve();
+      this.pending++;
+      this.setStatus('syncing');
+      const run = () => this.withRetry(() => op(ref));
+      const next = (this.chains.get(ref.path) || Promise.resolve()).then(run, run);
+      this.chains.set(ref.path, next.catch(() => {}));
+      return next
+        .catch((e) => this.fail(e))
+        .finally(() => {
+          if (--this.pending === 0) {
+            this.chains.clear();
+            if (this.status !== 'error') this.setStatus('synced');
+            if (this.dirty) this.apply();
+          }
+        });
+    },
+
+    async withRetry(fn) {
+      for (let attempt = 0; ; attempt++) {
+        try { return await fn(); } catch (e) {
+          const retryable = e && (e.code === 'unavailable' || e.code === 'resource_exhausted');
+          if (!retryable || attempt >= 3) throw e;
+          await new Promise((r) => setTimeout(r, 400 * 2 ** attempt + Math.random() * 300));
+        }
+      }
+    },
+
+    fail(e) {
+      console.error('Ghi đồng bộ thất bại', e);
+      this.setStatus('error');
+      const code = e && e.code;
+      toast(code === 'quota_exceeded'
+        ? '⚠️ Kho đồng bộ đã đầy, dữ liệu mới chỉ lưu trên máy này'
+        : code === 'invalid_argument'
+          ? '⚠️ Bạn không có quyền ghi dữ liệu ở trang này'
+          : '⚠️ Chưa đồng bộ được, dữ liệu vẫn lưu trên máy này');
+    },
+
+    drain() {
+      return Promise.all([...this.chains.values()]);
+    },
+
+    monthRef(month) { return this.monthsCol.doc(month); },
+
+    /** Trộn các giao dịch vào bản ghi của tháng; tạo bản ghi nếu tháng đó chưa có. */
+    mergeMonth(month, entries) {
+      return this.enqueue(this.monthRef(month), async (ref) => {
+        try {
+          await ref.update({ tx: entries });
+        } catch (e) {
+          if (!e || e.code !== 'invalid_argument') throw e;
+          const snap = await ref.get();
+          if (snap.exists) throw e;
+          await ref.set({ tx: entries });
+        }
+        this.knownMonths.add(month);
+      });
+    },
+
+    toDoc(t) {
+      return { type: t.type, amount: t.amount, categoryId: t.categoryId, date: t.date, note: t.note, createdAt: t.createdAt };
+    },
+
+    putTx(t, prevDate) {
+      if (!this.on) return;
+      const month = t.date.slice(0, 7);
+      if (prevDate && prevDate.slice(0, 7) !== month) this.mergeMonth(prevDate.slice(0, 7), { [t.id]: { _del: 1 } });
+      this.mergeMonth(month, { [t.id]: this.toDoc(t) });
+    },
+
+    /** Ghi nhiều giao dịch: gom theo tháng thành một lệnh mỗi tháng. */
+    putMany(list) {
+      if (!this.on) return;
+      const byMonth = new Map();
+      for (const t of list) {
+        const m = t.date.slice(0, 7);
+        if (!byMonth.has(m)) byMonth.set(m, {});
+        byMonth.get(m)[t.id] = this.toDoc(t);
+      }
+      byMonth.forEach((entries, m) => this.mergeMonth(m, entries));
+    },
+
+    deleteTx(t) {
+      if (this.on) this.mergeMonth(t.date.slice(0, 7), { [t.id]: { _del: 1 } });
+    },
+
+    putMeta() {
+      if (!this.on) return;
+      const body = { version: SCHEMA_VERSION, categories: state.categories, settings: state.settings };
+      this.enqueue(this.metaRef, (ref) => ref.set(JSON.parse(JSON.stringify(body))));
+    },
+
+    /** Thay toàn bộ dữ liệu trên mây bằng state hiện tại (khôi phục, xóa toàn bộ, lần đầu tải lên). */
+    replaceAll() {
+      if (!this.on) return Promise.resolve();
+      const byMonth = new Map();
+      for (const t of state.transactions) {
+        const m = t.date.slice(0, 7);
+        if (!byMonth.has(m)) byMonth.set(m, {});
+        byMonth.get(m)[t.id] = this.toDoc(t);
+      }
+      for (const m of this.knownMonths) {
+        if (!byMonth.has(m)) this.enqueue(this.monthRef(m), (ref) => ref.delete());
+      }
+      byMonth.forEach((tx, m) => this.enqueue(this.monthRef(m), (ref) => ref.set({ tx })));
+      this.putMeta();
+      return this.drain();
+    },
+
+    setStatus(st) {
+      this.status = st;
+      const el = $('#syncBadge');
+      if (!el) return;
+      const map = {
+        connecting: ['⏳', 'Đang kết nối đồng bộ…'],
+        synced: ['☁️', 'Đã đồng bộ'],
+        syncing: ['🔄', 'Đang đồng bộ…'],
+        error: ['⚠️', 'Lỗi đồng bộ'],
+      };
+      const v = map[st];
+      el.hidden = !v;
+      if (v) {
+        el.querySelector('.sync-icon').textContent = v[0];
+        el.querySelector('.sync-text').textContent = v[1];
+        el.title = v[1];
+        el.dataset.state = st;
+      }
+      if (ui.view === 'settings') renderSettings();
+    },
+  };
+
   // ===================== Truy vấn dữ liệu =====================
   const catMap = () => new Map(state.categories.map((c) => [c.id, c]));
   const UNKNOWN_CAT = { name: 'Không rõ', icon: '❔', color: '#94a3b8' };
@@ -675,6 +904,13 @@
     $('#catListIncome').innerHTML = state.categories.filter((c) => c.type === 'income').map(row).join('');
 
     const bytes = new Blob([JSON.stringify(state)]).size;
+    const syncText = {
+      synced: '☁️ Đã đồng bộ giữa các thiết bị đăng nhập cùng tài khoản claude.ai.',
+      syncing: '🔄 Đang đồng bộ…',
+      connecting: '⏳ Đang kết nối đồng bộ…',
+      error: '⚠️ Chưa đồng bộ được. Dữ liệu vẫn lưu trên máy này.',
+    }[Cloud.status];
+    $('#syncInfo').textContent = syncText || 'Dữ liệu chỉ lưu trên trình duyệt của thiết bị này. Hãy sao lưu định kỳ.';
     $('#storageInfo').textContent =
       `${state.transactions.length} giao dịch · ${state.categories.length} danh mục · ${(bytes / 1024).toFixed(1)} KB`;
     $('#installBtn').hidden = !ui.installPrompt;
@@ -729,9 +965,15 @@
 
     if (ui.editingTxId) {
       const t = state.transactions.find((x) => x.id === ui.editingTxId);
-      if (t) Object.assign(t, { type, amount, categoryId, date, note });
+      if (t) {
+        const prevDate = t.date;
+        Object.assign(t, { type, amount, categoryId, date, note });
+        Cloud.putTx(t, prevDate);
+      }
     } else {
-      state.transactions.push({ id: uid(), type, amount, categoryId, date, note, createdAt: Date.now() });
+      const t = { id: uid(), type, amount, categoryId, date, note, createdAt: Date.now() };
+      state.transactions.push(t);
+      Cloud.putTx(t);
     }
     ui.lastType = type;
     const msg = ui.editingTxId ? 'Đã cập nhật giao dịch' : `Đã thêm ${type === 'income' ? 'khoản thu' : 'khoản chi'} ${fmtMoney(amount)}`;
@@ -792,6 +1034,7 @@
     } else {
       state.categories.push({ id: uid(), name, icon, color, type, budget });
     }
+    Cloud.putMeta();
     catDialog.close();
     commit(ui.editingCatId ? 'Đã cập nhật danh mục' : 'Đã thêm danh mục');
   });
@@ -805,15 +1048,33 @@
       ? `Xóa danh mục "${c.name}"?\n${n} giao dịch sẽ được chuyển sang "${fallback.name}".`
       : `Xóa danh mục "${c.name}"?`;
     if (!(await ask(msg, { ok: 'Xóa danh mục' }))) return;
-    state.transactions.forEach((t) => { if (t.categoryId === id) t.categoryId = fallback.id; });
+    const moved = state.transactions.filter((t) => t.categoryId === id);
+    moved.forEach((t) => { t.categoryId = fallback.id; });
     state.categories = state.categories.filter((x) => x.id !== id);
+    Cloud.putMany(moved);
+    Cloud.putMeta();
     if (ui.filter.cat === id) ui.filter.cat = 'all';
     catDialog.close();
     commit('Đã xóa danh mục');
   }
 
   // ===================== Nhập / xuất dữ liệu =====================
-  function download(filename, content, mime) {
+  /** Trong claude.ai Artifact, trình duyệt chặn tải file trực tiếp: dùng capability `downloads`. */
+  const embedded = !!(window.claude && typeof window.claude.use === 'function');
+  const downloadsCap = embedded ? claude.use('downloads').catch(() => null) : Promise.resolve(null);
+
+  async function download(filename, content, mime) {
+    if (embedded) {
+      const dl = await downloadsCap;
+      if (!dl) { toast('Trang này không hỗ trợ tải file'); return false; }
+      try {
+        await dl.save({ filename, data: content });
+        return true;
+      } catch (e) {
+        if (e && e.code !== 'declined') toast('Không tải được file');
+        return false;
+      }
+    }
     const blob = content instanceof Blob ? content : new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -823,16 +1084,16 @@
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
   }
 
-  function exportJSON() {
+  async function exportJSON() {
     const payload = { app: 'sochitieu', exportedAt: new Date().toISOString(), ...state };
-    download(`so-chi-tieu-${todayISO()}.json`, JSON.stringify(payload, null, 2), 'application/json');
-    toast('Đã tải file sao lưu');
+    if (await download(`so-chi-tieu-${todayISO()}.json`, JSON.stringify(payload, null, 2), 'application/json')) toast('Đã tải file sao lưu');
   }
 
   /** CSV có BOM để Excel đọc đúng tiếng Việt; chặn CSV/formula injection. */
-  function exportCSV() {
+  async function exportCSV() {
     const cm = catMap();
     const cell = (v) => {
       let s = String(v ?? '');
@@ -845,8 +1106,7 @@
         t.type === 'income' ? t.amount : -t.amount, t.note]);
     }
     const csv = '﻿' + rows.map((r) => r.map((v, i) => (i === 3 ? String(v) : cell(v))).join(',')).join('\r\n');
-    download(`so-chi-tieu-${todayISO()}.csv`, csv, 'text/csv;charset=utf-8');
-    toast('Đã xuất file CSV');
+    if (await download(`so-chi-tieu-${todayISO()}.csv`, csv, 'text/csv;charset=utf-8')) toast('Đã xuất file CSV');
   }
 
   async function importJSON(file) {
@@ -856,6 +1116,7 @@
       const data = sanitizeState(JSON.parse(await file.text()));
       if (!(await ask(`Khôi phục ${data.transactions.length} giao dịch và ${data.categories.length} danh mục?\nDữ liệu hiện tại sẽ bị thay thế.`, { ok: 'Khôi phục' }))) return;
       state = data;
+      Cloud.replaceAll();
       commit('Đã khôi phục dữ liệu');
     } catch (e) {
       console.error(e);
@@ -896,14 +1157,20 @@
       }
     }
     const ts = Date.now();
-    added.forEach((t, i) => state.transactions.push({ id: uid(), createdAt: ts + i, ...t }));
-    if (!state.settings.monthlyBudget) state.settings.monthlyBudget = 12000000;
+    const created = added.map((t, i) => ({ id: uid(), createdAt: ts + i, ...t }));
+    state.transactions.push(...created);
+    Cloud.putMany(created);
+    if (!state.settings.monthlyBudget) {
+      state.settings.monthlyBudget = 12000000;
+      Cloud.putMeta();
+    }
     commit(`Đã tạo ${added.length} giao dịch mẫu`);
   }
 
   async function resetData() {
     if (!(await ask('Xóa TOÀN BỘ giao dịch, danh mục và cài đặt?\nThao tác này không thể hoàn tác. Nên sao lưu trước khi xóa.', { ok: 'Xóa toàn bộ' }))) return;
     state = defaultState();
+    Cloud.replaceAll();
     ui.filter = { q: '', type: 'all', cat: 'all' };
     commit('Đã xóa toàn bộ dữ liệu');
   }
@@ -948,7 +1215,9 @@
     },
     'delete-tx': async () => {
       if (!ui.editingTxId || !(await ask('Xóa giao dịch này?', { ok: 'Xóa' }))) return;
+      const gone = state.transactions.find((t) => t.id === ui.editingTxId);
       state.transactions = state.transactions.filter((t) => t.id !== ui.editingTxId);
+      if (gone) Cloud.deleteTx(gone);
       txDialog.close();
       commit('Đã xóa giao dịch');
     },
@@ -1005,11 +1274,12 @@
   $('#fType').addEventListener('change', (e) => { ui.filter.type = e.target.value; renderTransactions(); });
   $('#fCat').addEventListener('change', (e) => { ui.filter.cat = e.target.value; renderTransactions(); });
 
-  $('#sTheme').addEventListener('change', (e) => { state.settings.theme = e.target.value; commit(); });
+  $('#sTheme').addEventListener('change', (e) => { state.settings.theme = e.target.value; Cloud.putMeta(); commit(); });
   const sBudget = $('#sBudget');
   bindMoneyInput(sBudget);
   sBudget.addEventListener('change', () => {
     state.settings.monthlyBudget = Math.min(parseAmount(sBudget.value), MAX_AMOUNT);
+    Cloud.putMeta();
     commit('Đã lưu ngân sách');
   });
 
@@ -1049,6 +1319,7 @@
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
   render();
+  Cloud.init();
 
   // Lối tắt từ biểu tượng app (manifest shortcuts): ./?action=add
   if (new URLSearchParams(location.search).get('action') === 'add') {

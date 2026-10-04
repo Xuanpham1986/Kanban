@@ -19,6 +19,7 @@
     <div class="brand">
       <img src="icons/icon.svg" alt="" width="28" height="28">
       <span>Sổ Chi Tiêu</span>
+      <span id="syncBadge" class="sync-badge" role="status" hidden><span class="sync-icon"></span><span class="sync-text"></span></span>
     </div>
     <div class="month-nav">
       <button class="icon-btn" data-action="prev-month" aria-label="Tháng trước">‹</button>
@@ -117,7 +118,7 @@
 
       <div class="card">
         <h2>Dữ liệu</h2>
-        <p class="muted">Dữ liệu chỉ lưu trên trình duyệt của thiết bị này. Hãy sao lưu định kỳ.</p>
+        <p class="muted" id="syncInfo">Dữ liệu chỉ lưu trên trình duyệt của thiết bị này. Hãy sao lưu định kỳ.</p>
         <div class="btn-group">
           <button class="btn" data-action="export-json">⬇️ Sao lưu (JSON)</button>
           <button class="btn" data-action="import-json">⬆️ Khôi phục</button>
