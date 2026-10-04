@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sổ Chi Tiêu</title>
+  <meta name="description" content="Ứng dụng quản lý thu chi cá nhân, chạy offline trên trình duyệt.">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Chi Tiêu">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <img src="icons/icon.svg" alt="" width="28" height="28">
+      <span>Sổ Chi Tiêu</span>
+    </div>
+    <div class="month-nav">
+      <button class="icon-btn" data-action="prev-month" aria-label="Tháng trước">‹</button>
+      <button class="month-label" data-action="this-month" id="monthLabel" title="Về tháng hiện tại"></button>
+      <button class="icon-btn" data-action="next-month" aria-label="Tháng sau">›</button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Điều hướng chính">
+    <button class="tab active" data-view="dashboard"><span aria-hidden="true">🏠</span>Tổng quan</button>
+    <button class="tab" data-view="transactions"><span aria-hidden="true">📋</span>Giao dịch</button>
+    <button class="tab" data-view="stats"><span aria-hidden="true">📊</span>Thống kê</button>
+    <button class="tab" data-view="settings"><span aria-hidden="true">⚙️</span>Cài đặt</button>
+  </nav>
+
+  <main class="container">
+    <!-- Tổng quan -->
+    <section class="view active" id="view-dashboard" aria-label="Tổng quan"></section>
+
+    <!-- Giao dịch -->
+    <section class="view" id="view-transactions" aria-label="Giao dịch">
+      <div class="card filters">
+        <input type="search" id="fSearch" placeholder="Tìm theo ghi chú, danh mục…" aria-label="Tìm kiếm">
+        <select id="fType" aria-label="Loại">
+          <option value="all">Tất cả</option>
+          <option value="expense">Chi</option>
+          <option value="income">Thu</option>
+        </select>
+        <select id="fCat" aria-label="Danh mục"></select>
+      </div>
+      <div id="txSummary" class="tx-summary"></div>
+      <div id="txList"></div>
+    </section>
+
+    <!-- Thống kê -->
+    <section class="view" id="view-stats" aria-label="Thống kê">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Cơ cấu chi tiêu</h2>
+          <canvas id="donutChart" data-height="240" role="img" aria-label="Biểu đồ cơ cấu chi tiêu theo danh mục"></canvas>
+          <ul id="donutLegend" class="legend"></ul>
+        </div>
+        <div class="card">
+          <h2>Thu &amp; chi 6 tháng</h2>
+          <canvas id="barChart" data-height="240" role="img" aria-label="Biểu đồ thu chi 6 tháng gần nhất"></canvas>
+          <div class="legend-inline">
+            <span><i class="dot income"></i>Thu</span>
+            <span><i class="dot expense"></i>Chi</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Chi tiêu theo ngày</h2>
+        <canvas id="dailyChart" data-height="180" role="img" aria-label="Biểu đồ chi tiêu theo ngày trong tháng"></canvas>
+      </div>
+      <div id="statsMetrics" class="metrics"></div>
+    </section>
+
+    <!-- Cài đặt -->
+    <section class="view" id="view-settings" aria-label="Cài đặt">
+      <div class="card">
+        <h2>Chung</h2>
+        <div class="form-row">
+          <label for="sTheme">Giao diện</label>
+          <select id="sTheme">
+            <option value="auto">Theo hệ thống</option>
+            <option value="light">Sáng</option>
+            <option value="dark">Tối</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="sBudget">Ngân sách chi mỗi tháng</label>
+          <div class="input-suffix">
+            <input id="sBudget" inputmode="numeric" autocomplete="off" placeholder="0 = không giới hạn">
+            <span>₫</span>
+          </div>
+        </div>
+        <button class="btn" id="installBtn" data-action="install" hidden>📲 Cài đặt ứng dụng</button>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Danh mục chi</h2>
+          <button class="btn small" data-action="add-cat" data-type="expense">+ Thêm</button>
+        </div>
+        <ul id="catListExpense" class="cat-list"></ul>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Danh mục thu</h2>
+          <button class="btn small" data-action="add-cat" data-type="income">+ Thêm</button>
+        </div>
+        <ul id="catListIncome" class="cat-list"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Dữ liệu</h2>
+        <p class="muted">Dữ liệu chỉ lưu trên trình duyệt của thiết bị này. Hãy sao lưu định kỳ.</p>
+        <div class="btn-group">
+          <button class="btn" data-action="export-json">⬇️ Sao lưu (JSON)</button>
+          <button class="btn" data-action="import-json">⬆️ Khôi phục</button>
+          <button class="btn" data-action="export-csv">📄 Xuất Excel (CSV)</button>
+          <button class="btn" data-action="sample-data">✨ Tạo dữ liệu mẫu</button>
+          <button class="btn danger" data-action="reset-data">🗑️ Xóa toàn bộ</button>
+        </div>
+        <p class="muted small" id="storageInfo"></p>
+      </div>
+    </section>
+  </main>
+
+  <button class="fab" data-action="add-tx" aria-label="Thêm giao dịch" title="Thêm giao dịch (phím N)">+</button>
+
+  <!-- Hộp thoại giao dịch -->
+  <dialog id="txDialog" aria-labelledby="txDialogTitle">
+    <form id="txForm" novalidate>
+      <h2 id="txDialogTitle">Thêm giao dịch</h2>
+      <div class="segmented" role="radiogroup" aria-label="Loại giao dịch">
+        <label><input type="radio" name="type" value="expense" checked><span>Khoản chi</span></label>
+        <label><input type="radio" name="type" value="income"><span>Khoản thu</span></label>
+      </div>
+      <div class="form-row">
+        <label for="txAmount">Số tiền</label>
+        <div class="input-suffix big">
+          <input id="txAmount" name="amount" inputmode="numeric" autocomplete="off" placeholder="0" required>
+          <span>₫</span>
+        </div>
+        <div class="quick-amounts" id="quickAmounts"></div>
+      </div>
+      <div class="form-row">
+        <label for="txCategory">Danh mục</label>
+        <select id="txCategory" name="category" required></select>
+      </div>
+      <div class="form-row">
+        <label for="txDate">Ngày</label>
+        <input type="date" id="txDate" name="date" required>
+      </div>
+      <div class="form-row">
+        <label for="txNote">Ghi chú</label>
+        <input id="txNote" name="note" maxlength="200" placeholder="VD: Cà phê với khách hàng">
+      </div>
+      <p class="form-error" id="txError" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn danger ghost" id="txDelete" data-action="delete-tx" hidden>Xóa</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-action="close-dialog">Hủy</button>
+        <button type="submit" class="btn primary">Lưu</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Hộp thoại danh mục -->
+  <dialog id="catDialog" aria-labelledby="catDialogTitle">
+    <form id="catForm" novalidate>
+      <h2 id="catDialogTitle">Danh mục</h2>
+      <div class="form-row two">
+        <div>
+          <label for="catIcon">Biểu tượng</label>
+          <input id="catIcon" name="icon" maxlength="4" placeholder="🍜">
+        </div>
+        <div>
+          <label for="catColor">Màu</label>
+          <input type="color" id="catColor" name="color" value="#0f766e">
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="catName">Tên danh mục</label>
+        <input id="catName" name="name" maxlength="40" required>
+      </div>
+      <div class="form-row" id="catBudgetRow">
+        <label for="catBudget">Hạn mức mỗi tháng (tùy chọn)</label>
+        <div class="input-suffix">
+          <input id="catBudget" name="budget" inputmode="numeric" autocomplete="off" placeholder="0 = không giới hạn">
+          <span>₫</span>
+        </div>
+      </div>
+      <p class="form-error" id="catError" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn danger ghost" id="catDelete" data-action="delete-cat" hidden>Xóa</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-action="close-dialog">Hủy</button>
+        <button type="submit" class="btn primary">Lưu</button>
+      </div>
+    </form>
+  </dialog>
+
+  <input type="file" id="importFile" accept="application/json,.json" hidden>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <noscript><p class="noscript">Ứng dụng cần bật JavaScript để hoạt động.</p></noscript>
+</body>
+</html>
