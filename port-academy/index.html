@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Port Pro Academy</title>
+  <meta name="description" content="Học pháp luật hải quan, hàng hải, đường thủy nội địa, logistics kho bãi, nâng hạ hàng siêu trường siêu trọng, tiếng Anh khai thác cảng và kỹ năng quản lý.">
+  <meta name="theme-color" content="#0b5c8a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Port Academy">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <script>
+    try { var t = localStorage.getItem('pa.theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/"><img src="icons/icon.svg" alt=""><span>Port Pro <span class="long">Academy</span></span></a>
+    <form class="search" id="searchForm" role="search">
+      <label for="q" class="visually-hidden">Tìm kiếm</label>
+      <input id="q" type="search" placeholder="Tìm: VASSCM, sling, Incoterms…" autocomplete="off">
+    </form>
+    <button class="icon-btn" id="themeBtn" title="Đổi giao diện sáng/tối" aria-label="Đổi giao diện sáng/tối">🌓</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar" aria-label="Danh mục học"></nav>
+    <main id="app" tabindex="-1"><p>Đang tải…</p></main>
+  </div>
+
+  <nav class="bottom-nav" id="bottomNav" aria-label="Điều hướng nhanh">
+    <a href="#/" data-nav="home"><span class="ico">🏠</span>Trang chủ</a>
+    <a href="#/modules" data-nav="modules"><span class="ico">📚</span>Bài học</a>
+    <a href="#/flashcards" data-nav="flashcards"><span class="ico">🗂️</span>Từ vựng</a>
+    <a href="#/tools" data-nav="tools"><span class="ico">🧮</span>Công cụ</a>
+    <a href="#/progress" data-nav="progress"><span class="ico">📈</span>Tiến độ</a>
+  </nav>
+
+  <script src="js/data/01-hai-quan.js"></script>
+  <script src="js/data/02-hang-hai-dtnd.js"></script>
+  <script src="js/data/03-kinh-doanh.js"></script>
+  <script src="js/data/04-logistics-kho.js"></script>
+  <script src="js/data/05-nang-ha.js"></script>
+  <script src="js/data/06-tieng-anh.js"></script>
+  <script src="js/data/07-nhan-su.js"></script>
+  <script src="js/data/08-lanh-dao.js"></script>
+  <script src="js/data/09-quyet-dinh.js"></script>
+  <script src="js/data/glossary.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
