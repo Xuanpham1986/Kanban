@@ -109,7 +109,21 @@
         '<div class="meta">' + daily.m.icon + ' ' + esc(daily.m.title) + ' · ' + (daily.l.minutes || 10) + ' phút</div></div>';
     }
 
-    h += '<h2>Lộ trình học</h2>' + moduleGrid();
+    if (D.path && D.path.items) {
+      var pathItems = D.path.items.map(function (it) {
+        var m = findModule(it[0]); var l = m && m.lessons.filter(function (x) { return x.id === it[1]; })[0];
+        return l ? { m: m, l: l } : null;
+      }).filter(Boolean);
+      var pathDone = pathItems.filter(function (x) { return P.done[lessonKey(x.m, x.l)]; }).length;
+      h += '<h2>🧭 ' + esc(D.path.title) + '</h2><div class="card"><p class="meta" style="margin-top:0">' + esc(D.path.desc) + ' · ' + pathDone + '/' + pathItems.length + ' bài</p>' +
+        '<div class="progress" style="margin-bottom:10px"><span style="width:' + Math.round(pathDone * 100 / (pathItems.length || 1)) + '%"></span></div>' +
+        '<ol class="lesson-list">' + pathItems.map(function (x, i) {
+          var done = P.done[lessonKey(x.m, x.l)];
+          return '<li class="' + (done ? 'done' : '') + '"><a href="#/l/' + x.m.id + '/' + x.l.id + '"><span class="num">' + (done ? '✓' : i + 1) + '</span>' +
+            '<span class="t">' + esc(x.l.title) + '<br><span class="meta">' + x.m.icon + ' ' + esc(x.m.short || x.m.title) + ' · ' + (x.l.minutes || 10) + ' phút</span></span>›</a></li>';
+        }).join('') + '</ol></div>';
+    }
+    h += '<h2>Tất cả chuyên đề</h2>' + moduleGrid();
     h += '<h2>Luyện tập nhanh</h2><div class="grid">' +
       quick('#/flashcards', '🗂️', 'Flashcard tiếng Anh', GLOSSARY.length + ' thuật ngữ khai thác cảng, có phát âm') +
       quick('#/tools', '🧮', 'Công cụ hiện trường', 'Lực cáp sling, áp lực chân chống, chằng buộc, năng lực bãi, demurrage…') +
@@ -446,6 +460,67 @@
             r >= 4 ? ['🟡 TRUNG BÌNH', 'info', 'Kiểm soát theo quy trình, phổ biến trong toolbox talk.'] : ['🟢 THẤP', 'tip', 'Chấp nhận được, duy trì kiểm soát hiện có.'];
         return '<div class="v">Điểm rủi ro = ' + r + ' → ' + lvl[0] + '</div><div class="callout ' + lvl[1] + '">' + lvl[2] + '</div>' +
           '<div class="meta">Thứ tự biện pháp kiểm soát: Loại bỏ → Thay thế → Kỹ thuật → Hành chính (quy trình, đào tạo) → PPE.</div>';
+      }
+    },
+    {
+      id: 'grab', icon: '🪣', title: 'Năng suất gầu ngoạm (hàng rời)',
+      html: '<p class="meta">Năng suất = Dung tích gầu × Tỷ trọng × Hệ số đầy × 3600/Chu kỳ × Hệ số sử dụng thời gian. Kiểm tra (gầu + hàng) so với tải định mức chế độ gầu ngoạm của cẩu.</p>' +
+        '<div class="form-grid">' + fld('v', 'Dung tích gầu (m³)', 5) + fld('rho', 'Tỷ trọng đống hàng (t/m³)', 1.6) + fld('fill', 'Hệ số đầy gầu (%)', 85) +
+        fld('cyc', 'Chu kỳ gầu (giây)', 60) + fld('eff', 'Hệ số sử dụng thời gian (%)', 75) + fld('gw', 'Trọng lượng gầu (tấn)', 6) +
+        fld('cap', 'Tải định mức chế độ gầu của cẩu (tấn)', 15) + fld('qty', 'Khối lượng sà lan cần dỡ (tấn)', 1500) + '</div><div class="result" id="r"></div>' +
+        '<div class="table-wrap"><table><tr><th>Hàng</th><th>Tỷ trọng tham khảo (t/m³)</th></tr><tr><td>Cát khô / ẩm</td><td>1,4–1,6 / 1,7–2,0</td></tr><tr><td>Đá dăm</td><td>1,5–1,7</td></tr>' +
+        '<tr><td>Than đá</td><td>0,8–0,9</td></tr><tr><td>Clinker</td><td>1,3–1,5</td></tr><tr><td>Quặng sắt</td><td>2,0–2,6</td></tr><tr><td>Urea, ngũ cốc</td><td>0,7–0,8</td></tr></table></div>',
+      calc: function (v) {
+        var perCycle = v.v * v.rho * v.fill / 100, tph = perCycle * 3600 / v.cyc * v.eff / 100, lift = v.gw + perCycle;
+        var hrs = tph > 0 ? v.qty / tph : NaN;
+        return '<div>Hàng mỗi gầu: <b>' + fmt(perCycle, 2) + ' t</b> · Tải nâng mỗi lần (gầu + hàng): <b>' + fmt(lift, 2) + ' t</b></div>' +
+          '<div class="v">Năng suất ≈ ' + fmt(tph, 0) + ' tấn/giờ · ' + fmt(tph * 8, 0) + ' tấn/ca 8 giờ</div>' +
+          '<div>Thời gian dỡ hết sà lan ≈ <b>' + fmt(hrs, 1) + ' giờ</b> (chưa tính dọn đáy)</div>' +
+          (v.cap ? (lift > v.cap ? '<div class="callout danger">⛔ Gầu + hàng (' + fmt(lift, 1) + ' t) vượt tải định mức chế độ gầu (' + fmt(v.cap, 1) + ' t) — dùng gầu nhỏ hơn hoặc giảm độ đầy.</div>' :
+            '<div class="callout tip">✓ Mức sử dụng tải chế độ gầu: ' + fmt(lift / v.cap * 100, 0) + '%.</div>') : '') +
+          '<div class="meta">Giảm chu kỳ 10 giây → năng suất ' + fmt(perCycle * 3600 / Math.max(v.cyc - 10, 1) * v.eff / 100, 0) + ' t/h.</div>';
+      }
+    },
+    {
+      id: 'draft', icon: '📏', title: 'Khối lượng hàng theo mớn nước sà lan',
+      html: '<p class="meta">Công thức gần đúng cho sà lan dạng hộp khi không có bảng thủy tĩnh: Khối lượng ≈ L × B × Cw × (T<sub>sau</sub> − T<sub>trước</sub>) × ρ − thay đổi dằn/ nhiên liệu. Mỗi mớn nhập là trung bình hai mạn; mớn hiệu chỉnh = (Mũi + 6 × Giữa + Lái)/8.</p>' +
+        '<div class="form-grid">' + fld('L', 'Chiều dài đường nước L (m)', 60) + fld('B', 'Chiều rộng đường nước B (m)', 12) + fld('cw', 'Hệ số đường nước Cw', 0.92) + fld('rho', 'Tỷ trọng nước (t/m³)', 1.000) + '</div>' +
+        '<h3>Trước khi làm hàng (m)</h3><div class="form-grid">' + fld('f1', 'Mũi', 0.60) + fld('m1', 'Giữa', 0.60) + fld('a1', 'Lái', 0.60) + '</div>' +
+        '<h3>Sau khi làm hàng (m)</h3><div class="form-grid">' + fld('f2', 'Mũi', 2.45) + fld('m2', 'Giữa', 2.50) + fld('a2', 'Lái', 2.55) + '</div>' +
+        '<div class="form-grid">' + fld('ded', 'Thay đổi dằn/ nhiên liệu/ khác (tấn, + nếu tăng)', 0) + '</div><div class="result" id="r"></div>',
+      calc: function (v) {
+        var t1 = (v.f1 + 6 * v.m1 + v.a1) / 8, t2 = (v.f2 + 6 * v.m2 + v.a2) / 8, tpc = v.L * v.B * v.cw * v.rho / 100;
+        var cargo = v.L * v.B * v.cw * (t2 - t1) * v.rho - v.ded;
+        return '<div>Mớn hiệu chỉnh: trước <b>' + fmt(t1, 3) + ' m</b> → sau <b>' + fmt(t2, 3) + ' m</b> (chênh ' + fmt((t2 - t1) * 100, 1) + ' cm)</div>' +
+          '<div>TPC ≈ <b>' + fmt(tpc, 2) + ' tấn/cm</b> — sai 1 cm mớn ≈ ' + fmt(tpc, 1) + ' tấn</div>' +
+          '<div class="v">Khối lượng hàng ≈ ' + fmt(cargo, 1) + ' tấn</div>' +
+          '<div>Chúi (lái − mũi) sau làm hàng: ' + fmt((v.a2 - v.f2) * 100, 0) + ' cm</div>' +
+          '<div class="meta">Có bảng thủy tĩnh/ bảng dung tích của sà lan thì dùng bảng — chính xác hơn. Nước lợ: đo tỷ trọng bằng tỷ trọng kế tại thời điểm đọc mớn.</div>';
+      }
+    },
+    {
+      id: 'pile', icon: '⛰️', title: 'Đống hàng rời: thể tích, khối lượng, áp lực nền',
+      html: '<p class="meta">Đống dài có hai đầu hình nửa nón (nếu chiều dài ≤ bề rộng thì tính như đống nón). Chiều cao h = (B/2) × tan(góc nghỉ), giới hạn bởi chiều cao tối đa cho phép.</p>' +
+        '<div class="form-grid">' + fld('B', 'Bề rộng chân đống (m)', 20) + fld('L', 'Chiều dài chân đống (m)', 60) + fld('a', 'Góc nghỉ tự nhiên (°)', 33) +
+        fld('hmax', 'Chiều cao tối đa cho phép (m, 0 = không giới hạn)', 8) + fld('rho', 'Tỷ trọng đống (t/m³)', 1.6) + fld('allow', 'Sức chịu tải nền bãi (kPa)', 150) + '</div><div class="result" id="r"></div>',
+      calc: function (v) {
+        var r = v.B / 2, hNat = r * Math.tan(v.a * Math.PI / 180), h = v.hmax > 0 ? Math.min(hNat, v.hmax) : hNat, vol;
+        var L = Math.max(v.L, v.B);
+        if (h < hNat) {
+          // Đống bị cắt đỉnh: mặt cắt hình thang, đỉnh phẳng rộng b
+          var top = v.B - 2 * h / Math.tan(v.a * Math.PI / 180);
+          var area = (v.B + top) / 2 * h;
+          vol = area * (L - v.B) + (Math.PI * h / 3) * (r * r + r * (top / 2) + (top / 2) * (top / 2));
+        } else {
+          vol = r * h * (L - v.B) + Math.PI * r * r * h / 3;
+        }
+        var mass = vol * v.rho, p = h * v.rho * 9.81;
+        return '<div>Chiều cao đống: <b>' + fmt(h, 2) + ' m</b>' + (h < hNat ? ' (đã cắt đỉnh, tự nhiên ' + fmt(hNat, 2) + ' m)' : '') + '</div>' +
+          '<div class="v">Thể tích ≈ ' + fmt(vol, 0) + ' m³ · Khối lượng ≈ ' + fmt(mass, 0) + ' tấn</div>' +
+          '<div>Mật độ chứa: <b>' + fmt(mass / (L * v.B), 1) + ' t/m²</b> diện tích chân đống</div>' +
+          '<div>Áp lực lên nền tại tâm ≈ <b>' + fmt(p, 0) + ' kPa</b></div>' +
+          (v.allow ? (p > v.allow ? '<div class="callout danger">⛔ Vượt sức chịu tải nền — giảm chiều cao đống hoặc gia cố nền.</div>' : '<div class="callout tip">✓ Trong sức chịu tải nền (' + fmt(p / v.allow * 100, 0) + '%).</div>') : '') +
+          '<div class="meta">Giữ khoảng cách an toàn tới mép kè, tường kho theo hồ sơ thiết kế; không để người đứng sát chân đống khi xúc.</div>';
       }
     },
     { id: 'dm', icon: '⚖️', title: 'Ma trận ra quyết định có trọng số', custom: true }

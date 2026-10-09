@@ -6,6 +6,7 @@ Trang web tự học dành cho người làm **khai thác cảng và quản lý 
 
 | # | Chuyên đề | Bài | Trọng tâm |
 |---|---|---|---|
+| 0 | 🚢 Thực chiến cảng quốc tế đa hàng | 6 | Tàu – bãi – sà lan – ô tô; hàng rời (gầu ngoạm, IMSBC, đống hàng, hao hụt), tôn cuộn, siêu trọng (cẩu tàu heavy-lift, Ro-Ro qua sà lan), container chuyển tải sà lan, giám định mớn nước |
 | 1 | 🛃 Pháp luật hải quan cho cảng & kho bãi | 6 | Luật Hải quan, phân luồng, thời hạn, VASSCM, seal, kho ngoại quan/CFS, hàng tồn đọng, xử phạt, HS/Incoterms |
 | 2 | ⚓ Luật hàng hải & đường thủy nội địa | 5 | BLHH 2015, vận đơn & giới hạn trách nhiệm, Luật GTĐTNĐ, sà lan, IMDG/VGM/ISPS, NOR–laytime–demurrage |
 | 3 | 📜 Luật kinh doanh & dịch vụ logistics | 5 | Thẩm quyền ký, hợp đồng (phạt 8%, bồi thường, bất khả kháng), quyền cầm giữ hàng, giá & hóa đơn, bảo hiểm TOL |
@@ -16,13 +17,15 @@ Trang web tự học dành cho người làm **khai thác cảng và quản lý 
 | 8 | 🧭 Lãnh đạo & quản lý | 6 | Ủy quyền, lãnh đạo tình huống, an toàn tâm lý & Just Culture, xung đột, quản lý thay đổi, chỉ huy sự cố |
 | 9 | 🎯 Tư duy ra quyết định | 6 | Cửa một chiều/hai chiều, 5 Whys & xương cá, NPV/hoàn vốn, thiên kiến, OODA, đọc dữ liệu đúng |
 
+Trang chủ có **lộ trình gợi ý 17 bài** cho cảng quốc tế đa hàng (hàng rời, tôn cuộn, siêu trọng, container).
+
 Mỗi bài gồm: nội dung, **Ghi nhớ**, **Áp dụng ngay** (checklist lưu trạng thái), **Kiểm tra nhanh** (có giải thích), **Ghi chú cá nhân**. Mỗi chuyên đề có bài kiểm tra tổng hợp 15 câu ngẫu nhiên.
 
 **Luyện tập & công cụ**
 
-- 🗂️ **Flashcard** 147 thuật ngữ Anh – Việt theo 8 nhóm, phương pháp Leitner 5 hộp, có phát âm.
+- 🗂️ **Flashcard** 173 thuật ngữ Anh – Việt theo 9 nhóm, phương pháp Leitner 5 hộp, có phát âm.
 - 📖 **Từ điển** chuyên ngành, lọc theo nhóm.
-- 🧮 **Công cụ hiện trường**: lực cáp sling theo góc, áp lực chân chống lên nền, chằng buộc (CSS Code), năng lực bãi, BOR, laytime–demurrage, EOQ, ma trận rủi ro 5×5, ma trận ra quyết định có trọng số.
+- 🧮 **Công cụ hiện trường**: năng suất gầu ngoạm, khối lượng hàng theo mớn nước sà lan, đống hàng rời (thể tích, khối lượng, áp lực nền), lực cáp sling theo góc, áp lực chân chống lên nền, chằng buộc (CSS Code), năng lực bãi, BOR, laytime–demurrage, EOQ, ma trận rủi ro 5×5, ma trận ra quyết định có trọng số.
 - 🔎 **Tìm kiếm** toàn bộ bài học (gõ có dấu hoặc không dấu đều được).
 - 📈 **Tiến độ**: chuỗi ngày học, điểm kiểm tra, ghi chú; **sao lưu/khôi phục** bằng file JSON để chuyển giữa điện thoại và máy tính.
 
@@ -52,7 +55,7 @@ port-academy/
 ├── index.html              # Khung trang
 ├── css/styles.css          # Giao diện (sáng/tối, responsive)
 ├── js/app.js               # Router, bài học, quiz, flashcard, công cụ, tìm kiếm, tiến độ
-├── js/data/01-…09-*.js     # Nội dung từng chuyên đề
+├── js/data/00-…09-*.js     # Nội dung từng chuyên đề (00 = thực chiến cảng quốc tế + lộ trình gợi ý)
 ├── js/data/glossary.js     # Từ vựng Anh – Việt
 ├── sw.js, manifest.webmanifest, icons/   # PWA, offline
 ```
