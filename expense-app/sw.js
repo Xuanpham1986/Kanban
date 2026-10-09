@@ -1,6 +1,8 @@
 /* Service worker: cache app shell để chạy offline.
- * Tăng CACHE_VERSION mỗi khi phát hành bản mới. */
-const CACHE_VERSION = 'sochitieu-v1';
+ * Tăng CACHE_VERSION mỗi khi phát hành bản mới. Chỉ xóa cache của chính app này
+ * (cùng origin GitHub Pages còn có app khác, ví dụ Port Pro Academy). */
+const PREFIX = 'sochitieu-';
+const CACHE_VERSION = PREFIX + 'v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -22,7 +24,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith(PREFIX) && k !== CACHE_VERSION).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
