@@ -178,7 +178,7 @@ window.PA_DATA.modules.push({
       ],
       apply: [
         'Kiểm tra quy trình cổng: hệ thống có khóa cứng (hard-block) không cho in phiếu ra cổng khi chưa có trạng thái đủ điều kiện từ VASSCM?',
-        'Rà soát mẫu biên bản bất thường về seal: đủ ô ảnh, giờ, vị trí, chữ ký các bên chưa?',
+        'Rà soát mẫu biên bản bất thường về seal của đơn vị, so với mẫu <a href="#/forms/seal/new">Biên bản bất thường container/ seal</a>.',
         'Lấy danh sách camera, kiểm tra camera nào đang hỏng và thời gian lưu trữ thực tế của đầu ghi.',
         'Tổ chức 15 phút đào tạo cho nhân viên cổng về tình huống "hệ thống lỗi — làm gì?".'
       ],

@@ -67,7 +67,8 @@
     h += '<div class="group-label">Luyện tập</div>' +
       navLink('#/flashcards', '🗂️', 'Flashcard tiếng Anh', route === 'flashcards') +
       navLink('#/glossary', '📖', 'Từ điển chuyên ngành', route === 'glossary') +
-      navLink('#/tools', '🧮', 'Công cụ tính toán', route === 'tools');
+      navLink('#/tools', '🧮', 'Công cụ tính toán', route === 'tools') +
+      navLink('#/forms', '📝', 'Mẫu biểu hiện trường', route === 'forms');
     $('#sidebar').innerHTML = h;
     $all('#bottomNav a').forEach(function (a) {
       var n = a.getAttribute('data-nav');
@@ -127,6 +128,7 @@
     h += '<h2>Luyện tập nhanh</h2><div class="grid">' +
       quick('#/flashcards', '🗂️', 'Flashcard tiếng Anh', GLOSSARY.length + ' thuật ngữ khai thác cảng, có phát âm') +
       quick('#/tools', '🧮', 'Công cụ hiện trường', 'Lực cáp sling, áp lực chân chống, chằng buộc, năng lực bãi, demurrage…') +
+      quick('#/forms', '📝', 'Mẫu biểu hiện trường', 'Biên bản tôn cuộn, đọc mớn nước, checklist nâng cẩu tàu, bất thường seal, bàn giao ca — điền trên điện thoại, in PDF') +
       quick('#/glossary', '📖', 'Từ điển Anh – Việt', 'Tra cứu nhanh theo nhóm nghiệp vụ') + '</div>';
     h += disclaimer();
     app.innerHTML = h;
@@ -586,6 +588,229 @@
     draw();
   }
 
+  // ---------- Mẫu biểu hiện trường ----------
+  var FORMS = D.forms || [];
+  var REC = store.get('forms', null) || {};
+  function saveRec() { store.set('forms', REC); }
+  function findForm(id) { return FORMS.filter(function (f) { return f.id === id; })[0] || null; }
+  function num(x) { if (x == null || x === '') return NaN; return parseFloat(String(x).replace(/\s/g, '').replace(',', '.')); }
+  function newId() { var d = new Date(); return d.getFullYear().toString().slice(2) + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(); }
+  function nowStr() { var d = new Date(); return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }); }
+  function allChecks(form) { var out = []; form.sections.forEach(function (s) { (s.checklist || []).forEach(function (c) { out.push(c); }); }); return out; }
+  function tables(form) { return form.sections.filter(function (s) { return s.table; }).map(function (s) { return s.table; }); }
+  function helpers(form) {
+    return {
+      num: num, fmt: fmt,
+      load: function (v) { return (num(v.wt) || 0) + (num(v.rig) || 0); },
+      checks: function (v) {
+        var r = { total: 0, done: 0, ng: 0, critNg: 0, critOpen: 0 };
+        allChecks(form).forEach(function (c) {
+          var s = v['chk_' + c.id]; r.total++;
+          if (s) r.done++; if (s === 'ng') { r.ng++; if (c.critical) r.critNg++; }
+          if (c.critical && !s) r.critOpen++;
+        });
+        return r;
+      }
+    };
+  }
+  function defaults(form) {
+    var v = {};
+    form.sections.forEach(function (s) {
+      (s.fields || []).forEach(function (f) { if (f.def != null) v[f.id] = f.def; });
+      if (s.table) { v[s.table.id] = []; for (var i = 0; i < (s.table.rows || 3); i++) v[s.table.id].push({}); }
+    });
+    return v;
+  }
+  function fieldInput(f, val, attrs) {
+    val = val == null ? '' : val;
+    if (f.type === 'textarea') return '<textarea class="note" ' + attrs + '>' + esc(val) + '</textarea>';
+    if (f.type === 'select') return '<select ' + attrs + '><option value="">—</option>' + f.options.map(function (o) {
+      return '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+    var t = f.type === 'number' ? 'text" inputmode="decimal' : f.type === 'datetime' ? 'datetime-local' : (f.type || 'text');
+    return '<input type="' + t + '" ' + attrs + ' value="' + esc(val) + '">';
+  }
+
+  function viewForms() {
+    setTitle('Mẫu biểu');
+    var org = store.get('org', '');
+    var recent = [];
+    Object.keys(REC).forEach(function (fid) { (REC[fid] || []).forEach(function (r) { recent.push({ f: findForm(fid), r: r }); }); });
+    recent = recent.filter(function (x) { return x.f; }).sort(function (a, b) { return (b.r.updated || '').localeCompare(a.r.updated || ''); });
+    var h = '<h1>📝 Mẫu biểu hiện trường</h1><p class="meta">Điền trên điện thoại hoặc máy tính, tự lưu trên thiết bị này, tự tính toán và cảnh báo. Bấm <b>In / PDF</b> để ra bản A4 có ô ký. Ảnh chụp lưu trong điện thoại, ghi số ảnh vào biểu.</p>' +
+      '<div class="card"><div class="field"><label for="org">Tên đơn vị in trên đầu biểu mẫu</label><input id="org" type="text" placeholder="VD: CÔNG TY CP CẢNG … — XÍ NGHIỆP XẾP DỠ …" value="' + esc(org) + '"></div></div>' +
+      '<div class="grid">' + FORMS.map(function (f) {
+        var n = (REC[f.id] || []).length;
+        return '<div class="card module-card"><div class="head"><div class="emoji">' + f.icon + '</div><h3>' + esc(f.title) + '</h3></div><p>' + esc(f.desc) + '</p>' +
+          '<div class="meta">' + f.code + ' · ' + n + ' biểu đã lưu</div><div class="btn-row" style="margin-top:4px"><a class="btn primary small" href="#/forms/' + f.id + '/new">+ Lập biểu mới</a>' +
+          '<button class="btn small" data-blank="' + f.id + '">🖨️ In mẫu trống</button></div></div>';
+      }).join('') + '</div>';
+    h += '<h2>Biểu đã lưu</h2>' + (recent.length ? '<div class="card">' + recent.slice(0, 50).map(function (x) {
+      return '<div class="gl-item"><div><a href="#/forms/' + x.f.id + '/' + x.r.id + '"><b>' + x.f.icon + ' ' + esc(x.f.title) + '</b></a>' +
+        '<div class="d">' + esc(x.r.id) + (x.r.values.vessel ? ' · ' + esc(x.r.values.vessel) : '') + ' · cập nhật ' + esc(x.r.updatedText || '') + '</div></div></div>';
+    }).join('') + '</div>' : '<p class="meta">Chưa có biểu nào.</p>') + '<div id="printArea" class="print-only"></div>';
+    app.innerHTML = '<div id="formsRoot">' + h + '</div>';
+    renderSidebar('forms');
+    $('#org').addEventListener('input', function (e) { store.set('org', e.target.value); });
+    $('#formsRoot').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-blank]'); if (!b) return;
+      var f = findForm(b.getAttribute('data-blank'));
+      $('#printArea').innerHTML = printHtml(f, blankValues(f), '');
+      printForm();
+    });
+  }
+  function printForm() { document.body.classList.add('print-form'); window.print(); }
+  window.addEventListener('afterprint', function () { document.body.classList.remove('print-form'); });
+  function blankValues(f) {
+    var v = {}; tables(f).forEach(function (t) { v[t.id] = []; for (var i = 0; i < Math.max(8, t.rows || 3); i++) v[t.id].push({}); });
+    return v;
+  }
+
+  function viewForm(fid, rid) {
+    var form = findForm(fid); if (!form) return notFound();
+    var list = REC[fid] = REC[fid] || [];
+    var rec = list.filter(function (r) { return r.id === rid; })[0];
+    var isNew = !rec;
+    if (!rec) rec = { id: newId(), created: new Date().toISOString(), values: defaults(form) };
+    var v = rec.values, H = helpers(form), timer;
+    setTitle(form.title);
+
+    function persist() {
+      rec.updated = new Date().toISOString(); rec.updatedText = nowStr();
+      if (isNew) { list.unshift(rec); isNew = false; history.replaceState(null, '', '#/forms/' + fid + '/' + rec.id); }
+      saveRec();
+      var st = $('#fState'); if (st) st.textContent = 'Đã lưu lúc ' + rec.updatedText;
+    }
+    function updateSummary() { var s = $('#fsum'); if (s && form.summary) s.innerHTML = form.summary(v, H); }
+
+    function render() {
+      var h = '<div class="breadcrumb no-print"><a href="#/">Trang chủ</a> › <a href="#/forms">Mẫu biểu</a> › ' + esc(form.code) + '</div>' +
+        '<h1>' + form.icon + ' ' + esc(form.title) + '</h1><div class="meta">' + esc(form.en) + ' · Số: <b>' + esc(rec.id) + '</b> · <span id="fState">' +
+        (rec.updatedText ? 'Đã lưu lúc ' + esc(rec.updatedText) : 'Chưa lưu — tự lưu khi bạn bắt đầu nhập') + '</span></div>' +
+        (form.lesson ? '<p class="meta">Xem bài học liên quan: <a href="#/l/' + form.lesson[0] + '/' + form.lesson[1] + '">mở bài</a></p>' : '') +
+        '<div class="screen-only">';
+      form.sections.forEach(function (s) {
+        h += '<div class="card form-sec"><h2>' + esc(s.title) + '</h2>';
+        if (s.fields) h += '<div class="form-grid">' + s.fields.map(function (f) {
+          return '<div class="field' + (f.type === 'textarea' ? ' wide' : '') + '"><label>' + esc(f.label) + '</label>' + fieldInput(f, v[f.id], 'data-f="' + f.id + '"') + '</div>';
+        }).join('') + '</div>';
+        if (s.table) {
+          var t = s.table, rows = v[t.id] = v[t.id] || [];
+          h += rows.map(function (row, i) {
+            return '<div class="row-card"><div class="row-head"><b>Dòng ' + (i + 1) + '</b><button class="btn small" data-delrow="' + t.id + '" data-r="' + i + '" aria-label="Xóa dòng">✕</button></div><div class="form-grid">' +
+              t.columns.map(function (c) { return '<div class="field"><label>' + esc(c.label) + '</label>' + fieldInput(c, row[c.id], 'data-t="' + t.id + '" data-r="' + i + '" data-c="' + c.id + '"') + '</div>'; }).join('') + '</div></div>';
+          }).join('') + '<div class="btn-row"><button class="btn small" data-addrow="' + t.id + '">+ Thêm dòng</button><button class="btn small" data-csv="' + t.id + '">⬇️ Xuất CSV (Excel)</button></div>';
+        }
+        if (s.checklist) {
+          var g = '';
+          h += s.checklist.map(function (c) {
+            var head = c.g && c.g !== g ? '<h3>' + esc(c.g) + '</h3>' : ''; g = c.g;
+            var st = v['chk_' + c.id] || '';
+            return head + '<div class="chk-item' + (st === 'ng' ? ' ng' : st === 'ok' ? ' ok' : '') + '"><div class="chk-text">' + (c.critical ? '⚠️ ' : '') + esc(c.text) + '</div>' +
+              '<div class="chk-ctl"><div class="seg" role="group">' + [['ok', 'Đạt'], ['ng', 'Không đạt'], ['na', 'N/A']].map(function (o) {
+                return '<button type="button" class="seg-btn' + (st === o[0] ? ' on ' + o[0] : '') + '" data-k="' + c.id + '" data-s="' + o[0] + '">' + o[1] + '</button>';
+              }).join('') + '</div><input type="text" placeholder="Ghi chú" data-kn="' + c.id + '" value="' + esc(v['chkn_' + c.id] || '') + '"></div></div>';
+          }).join('');
+        }
+        h += '</div>';
+      });
+      h += '<div class="card"><h2>Ký xác nhận</h2><div class="form-grid">' + form.signatures.map(function (sg, i) {
+        return '<div class="field"><label>' + esc(sg) + ' — họ tên</label><input type="text" data-f="sig_' + i + '" value="' + esc(v['sig_' + i] || '') + '"></div>';
+      }).join('') + '</div><p class="meta">Chữ ký tay trên bản in.</p></div>';
+      h += '</div>';
+      if (form.summary) h += '<div class="card result-card"><h2>📊 Tổng hợp & cảnh báo</h2><div id="fsum"></div></div>';
+      h += '<div class="btn-row no-print"><button class="btn primary" id="fPrint">🖨️ In / Lưu PDF</button><button class="btn" id="fCopy">⧉ Nhân bản</button>' +
+        '<a class="btn" href="#/forms">← Danh sách</a><button class="btn" id="fDel" style="color:var(--danger)">🗑️ Xóa biểu</button></div>' +
+        '<div id="printArea" class="print-only"></div>';
+      root.innerHTML = h;
+      updateSummary();
+    }
+    app.innerHTML = '<div id="formRoot"></div>';
+    var root = $('#formRoot');
+    render();
+    renderSidebar('forms');
+
+    function onInput(e) {
+      var el = e.target, k;
+      if ((k = el.getAttribute('data-f'))) v[k] = el.value;
+      else if ((k = el.getAttribute('data-t'))) { v[k][+el.getAttribute('data-r')][el.getAttribute('data-c')] = el.value; }
+      else if ((k = el.getAttribute('data-kn'))) v['chkn_' + k] = el.value;
+      else return;
+      updateSummary(); clearTimeout(timer); timer = setTimeout(persist, 300);
+    }
+    root.addEventListener('input', onInput);
+    root.addEventListener('change', onInput);
+    root.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      var k;
+      if ((k = b.getAttribute('data-k'))) {
+        var cur = v['chk_' + k]; v['chk_' + k] = cur === b.getAttribute('data-s') ? '' : b.getAttribute('data-s');
+        persist(); var y = window.scrollY; render(); window.scrollTo(0, y);
+      } else if ((k = b.getAttribute('data-addrow'))) {
+        v[k].push({}); persist(); var y2 = window.scrollY; render(); window.scrollTo(0, y2);
+      } else if ((k = b.getAttribute('data-delrow'))) {
+        if (!confirm('Xóa dòng ' + (+b.getAttribute('data-r') + 1) + '?')) return;
+        v[k].splice(+b.getAttribute('data-r'), 1); persist(); var y3 = window.scrollY; render(); window.scrollTo(0, y3);
+      } else if ((k = b.getAttribute('data-csv'))) {
+        exportCsv(form, rec, k);
+      } else if (b.id === 'fPrint') {
+        $('#printArea').innerHTML = printHtml(form, v, rec.id); printForm();
+      } else if (b.id === 'fCopy') {
+        var copy = { id: newId(), created: new Date().toISOString(), values: JSON.parse(JSON.stringify(v)) };
+        form.signatures.forEach(function (s, i) { delete copy.values['sig_' + i]; });
+        copy.updated = copy.created; copy.updatedText = nowStr(); list.unshift(copy); saveRec();
+        location.hash = '#/forms/' + fid + '/' + copy.id;
+      } else if (b.id === 'fDel') {
+        if (!confirm('Xóa biểu ' + rec.id + '? Không thể hoàn tác.')) return;
+        var i = list.indexOf(rec); if (i >= 0) list.splice(i, 1); saveRec(); location.hash = '#/forms';
+      }
+    });
+  }
+
+  function exportCsv(form, rec, tid) {
+    var t = tables(form).filter(function (x) { return x.id === tid; })[0];
+    var q = function (s) { s = s == null ? '' : String(s); return '"' + s.replace(/"/g, '""') + '"'; };
+    var lines = [['STT'].concat(t.columns.map(function (c) { return c.label; })).map(q).join(',')];
+    (rec.values[tid] || []).forEach(function (r, i) {
+      if (!t.columns.some(function (c) { return r[c.id]; })) return;
+      lines.push([i + 1].concat(t.columns.map(function (c) { return r[c.id]; })).map(q).join(','));
+    });
+    var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = form.code + '-' + rec.id + '.csv'; a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  function printHtml(form, v, rid) {
+    var org = store.get('org', ''), blank = !rid;
+    function val(x) { return x == null || x === '' ? '<span class="pf-blank"></span>' : esc(String(x).replace('T', ' ')); }
+    var h = '<div class="pf"><table class="pf-head"><tr><td class="pf-org">' + esc(org || 'TÊN ĐƠN VỊ') + '</td><td class="pf-title"><b>' + esc(form.title.toUpperCase()) + '</b><br><i>' + esc(form.en) + '</i></td>' +
+      '<td class="pf-no">' + esc(form.code) + '<br>Số: ' + (rid ? esc(rid) : '..........') + '</td></tr></table>';
+    form.sections.forEach(function (s) {
+      h += '<h3>' + esc(s.title) + '</h3>';
+      if (s.fields) h += '<table class="pf-fields">' + s.fields.map(function (f) {
+        if (f.type === 'textarea') return '<tr><td colspan="2"><b>' + esc(f.label) + '</b><div class="pf-area">' + esc(v[f.id] || '').replace(/\n/g, '<br>') + '</div></td></tr>';
+        return '<tr><th>' + esc(f.label) + '</th><td>' + val(v[f.id]) + '</td></tr>';
+      }).join('') + '</table>';
+      if (s.table) {
+        var rows = (v[s.table.id] || []).filter(function (r) { return blank || s.table.columns.some(function (c) { return r[c.id]; }); });
+        h += '<table class="pf-grid"><tr><th>#</th>' + s.table.columns.map(function (c) { return '<th>' + esc(c.label) + '</th>'; }).join('') + '</tr>' +
+          rows.map(function (r, i) { return '<tr><td>' + (i + 1) + '</td>' + s.table.columns.map(function (c) { return '<td>' + (r[c.id] ? esc(r[c.id]) : '') + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+      }
+      if (s.checklist) {
+        h += '<table class="pf-grid"><tr><th>#</th><th>Nội dung kiểm tra</th><th>Đạt</th><th>Không<br>đạt</th><th>N/A</th><th class="pf-n">Ghi chú</th></tr>' +
+          s.checklist.map(function (c, i) {
+            var st = v['chk_' + c.id];
+            return '<tr><td>' + (i + 1) + '</td><td>' + (c.critical ? '⚠️ ' : '') + esc(c.text) + '</td>' + ['ok', 'ng', 'na'].map(function (o) { return '<td class="pf-c">' + (st === o ? '☒' : '☐') + '</td>'; }).join('') +
+              '<td class="pf-n">' + esc(v['chkn_' + c.id] || '') + '</td></tr>';
+          }).join('') + '</table><p class="pf-note">⚠️ = điều kiện bắt buộc. Một mục bắt buộc “Không đạt” thì không được thực hiện.</p>';
+      }
+    });
+    if (form.summary && !blank) h += '<h3>Tổng hợp</h3><div class="pf-sum">' + form.summary(v, helpers(form)) + '</div>';
+    h += '<p class="pf-note">Lập lúc: ' + (blank ? '....../....../.......... ........:........' : esc(nowStr())) + '</p><table class="pf-sign"><tr>' + form.signatures.map(function (s, i) {
+      return '<td><b>' + esc(s) + '</b><br><i>(Ký, ghi rõ họ tên)</i><div class="pf-space"></div>' + esc(v['sig_' + i] || '') + '</td>';
+    }).join('') + '</tr></table></div>';
+    return h;
+  }
+
   // ---------- Progress ----------
   function viewProgress() {
     setTitle('Tiến độ');
@@ -606,13 +831,13 @@
         return '<div class="card"><a href="#/l/' + m.id + '/' + l.id + '"><b>' + esc(l.title) + '</b></a><p style="white-space:pre-wrap;margin:.4em 0 0">' + esc(P.notes[k]) + '</p></div>';
       }).join('');
     }
-    h += '<h2>💾 Sao lưu & chuyển thiết bị</h2><div class="card"><p class="meta">Tiến độ lưu trên trình duyệt của thiết bị này. Để chuyển sang điện thoại/máy tính khác: Tải bản sao lưu → mở trang trên thiết bị mới → Khôi phục.</p>' +
+    h += '<h2>💾 Sao lưu & chuyển thiết bị</h2><div class="card"><p class="meta">Tiến độ và các biểu mẫu đã lập lưu trên trình duyệt của thiết bị này. Để chuyển sang điện thoại/máy tính khác: Tải bản sao lưu → mở trang trên thiết bị mới → Khôi phục.</p>' +
       '<div class="btn-row"><button class="btn" id="exp">⬇️ Tải bản sao lưu</button><label class="btn">⬆️ Khôi phục<input type="file" id="imp" accept="application/json" hidden></label>' +
       '<button class="btn" id="rst" style="color:var(--danger)">🗑️ Xóa toàn bộ tiến độ</button></div></div>';
     app.innerHTML = h;
     renderSidebar('progress');
     $('#exp').addEventListener('click', function () {
-      var blob = new Blob([JSON.stringify({ app: 'port-academy', v: 1, progress: P, dm: store.get('dm', null) }, null, 2)], { type: 'application/json' });
+      var blob = new Blob([JSON.stringify({ app: 'port-academy', v: 2, progress: P, dm: store.get('dm', null), forms: REC, org: store.get('org', '') }, null, 2)], { type: 'application/json' });
       var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'port-academy-backup-' + today() + '.json'; a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
     });
@@ -623,7 +848,7 @@
         try {
           var d = JSON.parse(r.result); if (d.app !== 'port-academy' || !d.progress) throw new Error('sai định dạng');
           P = d.progress; ['done', 'quiz', 'checks', 'notes', 'cards', 'days'].forEach(function (k) { if (!P[k]) P[k] = k === 'days' ? [] : {}; });
-          save(); if (d.dm) store.set('dm', d.dm); alert('Đã khôi phục tiến độ.'); viewProgress();
+          save(); if (d.dm) store.set('dm', d.dm); if (d.forms) { REC = d.forms; saveRec(); } if (d.org) store.set('org', d.org); alert('Đã khôi phục tiến độ.'); viewProgress();
         } catch (err) { alert('File không hợp lệ: ' + err.message); }
       };
       r.readAsText(f);
@@ -700,6 +925,7 @@
     else if (p[0] === 'flashcards') { fcState.queue = []; viewFlashcards(); }
     else if (p[0] === 'glossary') viewGlossary();
     else if (p[0] === 'tools') viewTools(p[1]);
+    else if (p[0] === 'forms') { if (p[1]) viewForm(p[1], p[2]); else viewForms(); }
     else if (p[0] === 'progress') viewProgress();
     else if (p[0] === 'search') viewSearch(p.slice(1).join('/'));
     else notFound();

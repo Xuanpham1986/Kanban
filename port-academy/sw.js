@@ -2,13 +2,13 @@
  * Tăng CACHE_VERSION mỗi khi phát hành bản mới. Chỉ xóa cache của chính app này
  * (cùng origin GitHub Pages còn có app khác). */
 const PREFIX = 'port-academy-';
-const CACHE_VERSION = PREFIX + 'v2';
+const CACHE_VERSION = PREFIX + 'v3';
 const APP_SHELL = [
   './', './index.html', './css/styles.css', './js/app.js', './manifest.webmanifest',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
   './js/data/00-cang-quoc-te.js', './js/data/01-hai-quan.js', './js/data/02-hang-hai-dtnd.js', './js/data/03-kinh-doanh.js',
   './js/data/04-logistics-kho.js', './js/data/05-nang-ha.js', './js/data/06-tieng-anh.js',
-  './js/data/07-nhan-su.js', './js/data/08-lanh-dao.js', './js/data/09-quyet-dinh.js', './js/data/glossary.js'
+  './js/data/07-nhan-su.js', './js/data/08-lanh-dao.js', './js/data/09-quyet-dinh.js', './js/data/glossary.js', './js/data/forms.js'
 ];
 
 self.addEventListener('install', (event) => {

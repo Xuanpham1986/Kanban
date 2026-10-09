@@ -203,7 +203,7 @@ Tải mỗi lần nâng = Trọng lượng gầu + Hàng trong gầu  ≤  Tải
       ],
       apply: [
         'Đi kiểm tra bãi tôn cuộn: cuộn ngoài cùng đã chèn đủ? Có cuộn đặt trực tiếp lên nền không?',
-        'Soạn mẫu biên bản tình trạng tôn cuộn có cột số cuộn, loại khuyết tật, ảnh, chữ ký.',
+        'Dùng mẫu <a href="#/forms/coil/new">Biên bản tình trạng tôn cuộn</a> cho lô tôn cuộn tiếp theo (in mẫu trống hoặc điền trên điện thoại).',
         'Kiểm tra WLL và lịch kiểm định C-hook/ kẹp cuộn đang dùng.'
       ],
       quiz: [
@@ -269,7 +269,8 @@ Năng lực bơm dằn (m³/giờ) phải lớn hơn tốc độ chuyển tải 
       ],
       apply: [
         'Tập hợp “hồ sơ bến” cho nhà thầu hàng siêu trọng: tải trọng mặt bến, cao độ, mực nước theo mùa, vị trí đệm va, bích neo.',
-        'Thêm tiêu chí dừng về mực nước và nghiêng sà lan vào mẫu phương án nâng/ lăn nội bộ.'
+        'Thêm tiêu chí dừng về mực nước và nghiêng sà lan vào mẫu phương án nâng/ lăn nội bộ.',
+        'Dùng <a href="#/forms/heavylift/new">Checklist trước khi nâng hàng nặng bằng cẩu tàu</a> cho lần nâng heavy-lift tiếp theo.'
       ],
       quiz: [
         { q: 'Khi SPMT lăn hàng từ bờ xuống sà lan, sà lan có xu hướng?', options: ['Nổi cao phía bến', 'Chúi về phía bến, mép boong hạ thấp', 'Không thay đổi', 'Nghiêng ra giữa sông'], answer: 1 },
@@ -366,7 +367,7 @@ L, B: chiều dài, rộng đường nước (m); Cw: hệ số diện tích đ�
       ],
       apply: [
         'Tính TPC cho 3 sà lan thường xuyên ra vào cảng và dán ở phòng giao nhận.',
-        'Chuẩn hóa mẫu biên bản đọc mớn nước 6 điểm, có ô tỷ trọng nước và hầm dằn trước – sau.',
+        'Dùng mẫu <a href="#/forms/draft/new">Biên bản đọc mớn nước 6 điểm</a> (tự tính mean of means và khối lượng) cho sà lan tiếp theo.',
         'So sánh khối lượng theo mớn nước và theo cân ô tô của 5 sà lan gần nhất.'
       ],
       quiz: [

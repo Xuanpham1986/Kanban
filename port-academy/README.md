@@ -26,6 +26,12 @@ Mỗi bài gồm: nội dung, **Ghi nhớ**, **Áp dụng ngay** (checklist lưu
 - 🗂️ **Flashcard** 173 thuật ngữ Anh – Việt theo 9 nhóm, phương pháp Leitner 5 hộp, có phát âm.
 - 📖 **Từ điển** chuyên ngành, lọc theo nhóm.
 - 🧮 **Công cụ hiện trường**: năng suất gầu ngoạm, khối lượng hàng theo mớn nước sà lan, đống hàng rời (thể tích, khối lượng, áp lực nền), lực cáp sling theo góc, áp lực chân chống lên nền, chằng buộc (CSS Code), năng lực bãi, BOR, laytime–demurrage, EOQ, ma trận rủi ro 5×5, ma trận ra quyết định có trọng số.
+- 📝 **Mẫu biểu hiện trường** (điền trên điện thoại/ máy tính, tự lưu, tự tính & cảnh báo, in/PDF khổ A4 có ô ký, in mẫu trống, xuất CSV mở bằng Excel, nhân bản):
+  - BM-TC-01 Biên bản tình trạng tôn cuộn khi dỡ hàng (phân biệt hư hỏng có sẵn trong hầm/ phát sinh, thử AgNO₃)
+  - BM-MN-02 Biên bản đọc mớn nước 6 điểm (tự tính mean of means, khối lượng hàng theo L×B×Cw hoặc TPC, cảnh báo nghiêng)
+  - BM-NH-03 Checklist trước khi nâng hàng nặng bằng cẩu tàu (22 mục, 13 mục bắt buộc → tự kết luận ĐƯỢC/KHÔNG ĐƯỢC NÂNG, % SWL, gió)
+  - BM-CT-04 Biên bản bất thường container/ seal (tự phát hiện số seal không khớp)
+  - BM-BG-05 Biên bản bàn giao ca (6 nhóm thông tin)
 - 🔎 **Tìm kiếm** toàn bộ bài học (gõ có dấu hoặc không dấu đều được).
 - 📈 **Tiến độ**: chuỗi ngày học, điểm kiểm tra, ghi chú; **sao lưu/khôi phục** bằng file JSON để chuyển giữa điện thoại và máy tính.
 
@@ -57,6 +63,7 @@ port-academy/
 ├── js/app.js               # Router, bài học, quiz, flashcard, công cụ, tìm kiếm, tiến độ
 ├── js/data/00-…09-*.js     # Nội dung từng chuyên đề (00 = thực chiến cảng quốc tế + lộ trình gợi ý)
 ├── js/data/glossary.js     # Từ vựng Anh – Việt
+├── js/data/forms.js        # Định nghĩa mẫu biểu (trường, bảng, checklist, công thức tổng hợp)
 ├── sw.js, manifest.webmanifest, icons/   # PWA, offline
 ```
 
@@ -71,6 +78,8 @@ Mỗi bài học là một đối tượng trong `lessons` của chuyên đề:
   quiz: [{ q: '…', options: ['A','B','C','D'], answer: 1, explain: '…' }]
 }
 ```
+
+Thêm/ sửa mẫu biểu: chỉnh `js/data/forms.js` — mỗi mẫu là danh sách section gồm `fields`, `table` hoặc `checklist` (mục `critical: true` là điều kiện bắt buộc) và hàm `summary` để tự tính/ cảnh báo. Có thể đặt tên đơn vị in trên đầu biểu tại trang Mẫu biểu.
 
 Thêm từ vựng: thêm dòng `['term', 'nghĩa', 'Example sentence.']` vào nhóm phù hợp trong `glossary.js`. Khi phát hành bản mới, tăng `CACHE_VERSION` trong `sw.js` để điện thoại nhận nội dung mới ngay khi offline.
 

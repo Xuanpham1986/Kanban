@@ -227,7 +227,7 @@ window.PA_DATA.modules.push({
         'Stay interview với người giỏi trước khi họ muốn nghỉ.'
       ],
       apply: [
-        'Thiết kế/ cải tiến mẫu bàn giao ca 1 trang theo 6 nhóm thông tin.',
+        'Dùng thử mẫu <a href="#/forms/handover/new">Biên bản bàn giao ca</a> trong 1 tuần, sau đó điều chỉnh theo thực tế.',
         'Thực hiện 1 stay interview với nhân viên giỏi nhất của bạn trong tháng này.'
       ],
       quiz: [
